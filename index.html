@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Грибная лавка</title>
+<title>NatureHug</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Onest:wght@400;500;600&display=swap">
 <style>
@@ -62,7 +62,7 @@ label.chk input{width:22px;height:22px;accent-color:var(--moss)}
 </head>
 <body>
 <header>
-  <h1>Грибная лавка</h1>
+  <h1>NatureHug</h1>
   <p>Сушёные, свежие грибы и экстракты</p>
 </header>
 <div class="bar" id="bar" hidden></div>
@@ -73,7 +73,7 @@ label.chk input{width:22px;height:22px;accent-color:var(--moss)}
 
 <script>
 const SHOP_CONTACT = "your_username"; // ник менеджера для заказов, без @
-const API = "https://ВАШ-ВОРКЕР.workers.dev"; // адрес Cloudflare Worker, без / в конце
+const API = "https://mushroom-shop.t9bkks2bdg.workers.dev"; // адрес Cloudflare Worker, без / в конце
 const CATS = ["Сушёные", "Экстракты", "Свежие", "Другое"];
 const tg = window.Telegram && Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
