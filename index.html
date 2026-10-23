@@ -47,13 +47,14 @@ header p{margin-top:12px;max-width:26ch;opacity:.9}
 .tile svg{width:64%;height:64%}.emo{font-size:54px;line-height:1}
 .ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .badge{position:absolute;top:8px;left:8px;z-index:1;font:600 12px Onest,sans-serif;padding:3px 9px;border-radius:999px;color:#fff;font-style:normal}
-.b-new{background:#3f8f4e}.b-hit{background:var(--clay)}.b-sale{background:#8a4fc4}
+.b-pre{background:#d98a1f}.b-new{background:#3f8f4e}.b-hit{background:var(--clay)}.b-sale{background:#8a4fc4}
 .heart{position:absolute;top:16px;right:16px;z-index:2;width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.88);color:#9a9a9a;font-size:18px;cursor:pointer;display:grid;place-items:center}
 .heart[aria-pressed=true]{background:#c9453b;color:#fff}
 .cname{font:600 17px/1.2 Fraunces,Georgia,serif}
 .csub{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .cprice{font-weight:600;margin-top:6px}.cprice small{font-weight:400;color:var(--muted)}
 .old{color:var(--muted);text-decoration:line-through;font-weight:400;font-size:13px;margin-right:6px}
+.card.pre .tile{filter:saturate(.75)}.prenote{margin:14px 0 0;padding:10px 12px;border-radius:14px;background:var(--leaf);font-size:14px}
 .card.out .tile{filter:grayscale(1);opacity:.55}.card.out .cname,.card.out .cprice{opacity:.55}
 .swrow{display:flex;justify-content:space-between;align-items:center;padding:6px 12px 12px;color:var(--muted);font-size:14px}
 .sw{flex:none;width:52px;height:30px;border-radius:999px;border:0;background:var(--line);position:relative;cursor:pointer}
@@ -95,6 +96,10 @@ label.chk{display:flex;align-items:center;gap:10px}label.chk input{width:22px;he
 .catrow{display:flex;gap:8px;align-items:center;margin-top:8px}.catrow .fld{margin:0;flex:1}.lock{width:42px;text-align:center}
 .ord{border:1.5px solid var(--line);background:var(--card);border-radius:18px;padding:12px 14px;margin-top:12px;font-size:15px}
 .ord.done{opacity:.55}.ord small{color:var(--muted)}.ord .ln{padding:2px 0}
+.cf{position:fixed;top:-40px;z-index:30;pointer-events:none;animation:cf 2.2s ease-in forwards}
+@keyframes cf{to{transform:translateY(112vh) rotate(360deg)}}
+.ord .btn{margin-top:8px;padding:11px;font-size:15px}.ord .btn+.btn{margin-top:6px}
+.stat{display:flex;justify-content:space-between;gap:8px;padding:2px 0}
 </style>
 </head>
 <body>
@@ -143,7 +148,7 @@ if (tg) { tg.ready(); tg.expand(); }
 document.addEventListener("touchmove", e => { if (e.scale && e.scale !== 1) e.preventDefault(); }, {passive:false});
 
 let PRODUCTS = [], CATS = [], CONTACT = "", BANNER = "", DELIVERY = "", current = "", q = "", SORT = "def";
-let isAdmin = false, preview = false, CART = [], FAV = new Set(), lastComment = "";
+let isAdmin = false, preview = false, CART = [], FAV = new Set(), lastComment = "", PROMO = null, PROMOS = [], ADDRESS = "";
 try { CART = JSON.parse(localStorage.getItem("nh_cart") || "[]"); FAV = new Set(JSON.parse(localStorage.getItem("nh_fav") || "[]")); } catch (e) {}
 const saveCart = () => { try { localStorage.setItem("nh_cart", JSON.stringify(CART)); } catch (e) {} };
 const saveFav = () => { try { localStorage.setItem("nh_fav", JSON.stringify([...FAV])); } catch (e) {} };
@@ -157,6 +162,24 @@ const buzz = (t = "light") => { try { tg && tg.HapticFeedback && tg.HapticFeedba
 let toastT; const toast = m => { $("toast").textContent = m; $("toast").classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => $("toast").classList.remove("show"), 1800); };
 const show = () => { if (!$("dlg").open) $("dlg").showModal(); };
 const adminMode = () => isAdmin && !preview;
+const discountOf = sub => PROMO ? (PROMO.pct ? Math.round(sub * PROMO.pct / 100) : Math.min(PROMO.sum, sub)) : 0;
+const orderErr = e => { const d = e.data || {};
+  return e.message === "429" ? "Слишком много заказов за час. Попробуйте позже или напишите продавцу в чат."
+    : d.error === "left" ? `Столько нет в наличии: «${d.name}», осталось ${d.left}.`
+    : d.error === "promo" ? "Промокод не найден."
+    : d.error === "stock" ? `Товар «${d.name}» сейчас нельзя заказать.`
+    : "Не удалось отправить заказ. Проверьте корзину или напишите продавцу в чат."; };
+function confetti(){
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const em = ["🍄","🌿","🧼","🍃","✨","🌸"];
+  for (let i = 0; i < 26; i++){
+    const e = document.createElement("span"); e.className = "cf"; e.textContent = em[i % em.length];
+    e.style.cssText = `left:${Math.random() * 100}vw;animation-delay:${Math.random() * .6}s;font-size:${18 + Math.random() * 16}px`;
+    document.body.appendChild(e); setTimeout(() => e.remove(), 3000);
+  }
+}
+const ST_TXT = {new: "принят", ready: "готов к выдаче ✅", done: "выдан", cancel: "отменён"};
+const fmtDate = t => new Date(t).toLocaleString("ru-RU", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"});
 
 const priceOf = (p, n) => p.by === "g" ? Math.round(p.price * n / 100) : p.price * n;
 const capsText = p => `${p.caps} капс. по ${gm(p.mg)} г`;
@@ -169,14 +192,14 @@ const api = (path, body) => fetch(API + path, {
   method: body ? "POST" : "GET",
   headers: {"Content-Type": "application/json", "X-Init-Data": tg ? tg.initData : ""},
   body: body ? JSON.stringify(body) : undefined
-}).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+}).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok){ const e = new Error(r.status); e.data = d; throw e; } return d; });
 
 function icon(color){
   return `<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="40" y="48" width="20" height="38" rx="9" fill="#efe5cc"/><path d="M8 54C8 28 28 12 50 12s42 16 42 42z" fill="${esc(color)}"/><circle cx="34" cy="34" r="5" fill="#fff" fill-opacity=".35"/><circle cx="62" cy="28" r="4" fill="#fff" fill-opacity=".3"/><circle cx="72" cy="44" r="3" fill="#fff" fill-opacity=".3"/></svg>`;
 }
 const pic = p => p.photo ? `<img class="ph" src="${photoURL(p)}" alt="" loading="lazy">` : p.emoji ? `<span class="emo">${esc(p.emoji)}</span>` : icon(p.cap);
-const badgeOf = p => p.tag ? {t: p.tag, c: TAGS[p.tag]} : (p.old > p.price ? {t: "−" + Math.round((1 - p.price / p.old) * 100) + "%", c: "sale"} : null);
-const cartItems = () => CART.map(c => ({p: PRODUCTS.find(x => x.id === c.id), qty: c.qty})).filter(x => x.p);
+const badgeOf = p => (!p.stock && p.pre !== false) ? {t: "Предзаказ", c: "pre"} : p.tag ? {t: p.tag, c: TAGS[p.tag]} : (p.old > p.price ? {t: "−" + Math.round((1 - p.price / p.old) * 100) + "%", c: "sale"} : null);
+const cartItems = () => CART.map(c => ({p: PRODUCTS.find(x => x.id === c.id), qty: c.qty})).filter(x => x.p && (x.p.stock || x.p.pre !== false));
 
 function resizeImage(file){
   return new Promise((res, rej) => {
@@ -200,12 +223,12 @@ function render(){
     $("bar").innerHTML = `<span>${preview ? "Так видят покупатели" : "Режим продавца"}</span><button id="mode">${preview ? "К управлению" : "Как у покупателя"}</button>`;
     $("mode").onclick = () => { preview = !preview; render(); };
   }
-  const tabs = [...(!adm && FAV.size ? [{k:"__fav", t:"♥ Избранное"}] : []), ...CATS.map(c => ({k:c, t:`${CAT_ICONS[c] || "🏷️"} ${c}`}))];
+  const tabs = [...(!adm && FAV.size ? [{k:"__fav", t:"♥ Избранное"}] : []), ...CATS.map(c => ({k:c, t:`${CAT_ICONS[c] || "🏷️"} ${c}`})), ...(!adm && tg && tg.initData ? [{k:"__my", t:"📦 Мои заказы"}] : [])];
   $("chips").hidden = !!q;
   $("chips").innerHTML = tabs.map(t => `<button class="chip" aria-pressed="${t.k === current}" data-c="${esc(t.k)}">${esc(t.t)}</button>`).join("");
   $("tools").hidden = !adm;
-  $("tools").innerHTML = adm ? `<button class="btn" id="addBtn">+ Товар</button><button class="btn ghost" id="ordBtn">📋 Заказы</button><button class="btn ghost" id="setBtn">⚙</button>` : "";
-  if (adm){ $("addBtn").onclick = () => openForm(); $("ordBtn").onclick = openOrders; $("setBtn").onclick = openSettings; }
+  $("tools").innerHTML = adm ? `<button class="btn" id="addBtn">+ Товар</button><button class="btn ghost" id="ordBtn">📋 Заказы</button><button class="btn ghost" id="bcBtn">📣</button><button class="btn ghost" id="setBtn">⚙</button>` : "";
+  if (adm){ $("addBtn").onclick = () => openForm(); $("ordBtn").onclick = openOrders; $("setBtn").onclick = openSettings; $("bcBtn").onclick = openBroadcast; }
 
   let items = q ? PRODUCTS.filter(p => (p.name + " " + p.lat).toLowerCase().includes(q.toLowerCase()))
     : current === "__fav" ? PRODUCTS.filter(p => FAV.has(p.id)) : PRODUCTS.filter(p => p.cat === current);
@@ -215,12 +238,12 @@ function render(){
   $("cnt").textContent = `Товаров: ${items.length}`;
   $("list").innerHTML = items.length ? items.map(p => {
     const b = badgeOf(p);
-    return `<div class="card ${p.stock ? "" : "out"}">
+    return `<div class="card ${p.stock ? "" : p.pre !== false ? "pre" : "out"}">
       ${adm ? "" : `<button class="heart" data-fav="${p.id}" aria-pressed="${FAV.has(p.id)}" aria-label="В избранное">♥</button>`}
       <button class="cbtn" data-id="${p.id}">
         <span class="tile" style="--c:${esc(p.cap)}">${b ? `<i class="badge b-${b.c}">${esc(b.t)}</i>` : ""}${pic(p)}</span>
         <span class="cname">${esc(p.name)}</span>
-        <span class="csub">${p.stock ? esc(p.lat || p.cat) : "Нет в наличии"}</span>
+        <span class="csub">${p.stock ? (p.left != null && p.left <= (p.by === "g" ? 500 : 5) ? "Осталось: " + p.left + (p.by === "g" ? " г" : " шт") : esc(p.lat || p.cat)) : p.pre !== false ? "Предзаказ" + (p.eta ? " · " + esc(p.eta) : "") : "Нет в наличии"}</span>
         <span class="cprice">${p.old > p.price ? `<span class="old">${fmt(p.old)}</span>` : ""}${fmt(p.price)}<small> / ${esc(priceUnit(p))}</small></span>
       </button>
       ${adm ? `<div class="swrow"><span>В наличии</span><button class="sw" role="switch" aria-checked="${p.stock}" aria-label="В наличии: ${esc(p.name)}" data-sw="${p.id}"></button></div>` : ""}
@@ -241,15 +264,15 @@ async function persist(p){
 function sendOrder(rows, comment){
   const who = CONTACT || SHOP_CONTACT;
   if (!who){ notify("Продавец ещё не указал, куда отправлять заказы."); return; }
-  const total = rows.reduce((s, r) => s + priceOf(r.p, r.qty), 0);
-  const text = "Здравствуйте! Хочу заказать:\n" + rows.map(r => `• ${r.p.name} — ${qtyLabel(r.p, r.qty)} — ${fmt(priceOf(r.p, r.qty))}`).join("\n") + `\nИтого: ${fmt(total)}` + (comment ? `\nКомментарий: ${comment}` : "");
+  const sub = rows.reduce((s, r) => s + priceOf(r.p, r.qty), 0), disc = discountOf(sub), total = sub - disc;
+  const text = "Здравствуйте! Хочу заказать:\n" + rows.map(r => `• ${r.p.name} — ${qtyLabel(r.p, r.qty)}${r.p.stock ? "" : " (предзаказ)"} — ${fmt(priceOf(r.p, r.qty))}`).join("\n") + (disc ? `\nПромокод ${PROMO.code}: −${fmt(disc)}` : "") + `\nИтого: ${fmt(total)}` + (comment ? `\nКомментарий: ${comment}` : "");
   const link = `https://t.me/${who}?text=${encodeURIComponent(text)}`;
   buzz("medium");
   tg ? tg.openTelegramLink(link) : window.open(link, "_blank");
 }
 
 function openItem(p){
-  const g = p.by === "g";
+  const g = p.by === "g", isPre = !p.stock, canBuy = p.stock || p.pre !== false;
   const cfg = g ? {min:50, step:50, def:200, presets:[100,250,500,1000], unit:"г"} : {min:1, step:1, def:1, presets:[1,2,3,5], unit:"шт"};
   $("dlgBody").innerHTML = `
     <div class="big" style="--c:${esc(p.cap)}">${pic(p)}</div>
@@ -257,19 +280,25 @@ function openItem(p){
     ${p.desc ? `<p>${esc(p.desc)}</p>` : ""}
     <div class="meta"><span>Цена</span><b>${p.old > p.price ? `<span class="old">${fmt(p.old)}</span>` : ""}${fmt(p.price)} за ${esc(priceUnit(p))}</b></div>
     ${p.by === "caps" ? `<div class="meta"><span>В банке</span><b>${p.caps} капсул по ${gm(p.mg)} г · всего ${gm(Math.round(p.caps * p.mg * 100) / 100)} г</b></div>` : ""}
-    ${p.stock ? `
+    ${p.left != null && p.stock ? `<div class="meta"><span>Осталось</span><b>${p.left} ${g ? "г" : "шт"}</b></div>` : ""}
+    ${canBuy ? `${isPre ? `<div class="prenote">🕓 Сейчас нет в наличии, но можно оформить предзаказ.${p.eta ? " Ожидаемый срок: " + esc(p.eta) + "." : ""} Продавец сообщит, когда товар поступит.</div>` : ""}
     <div class="qty-label" id="qtyLabel">${g ? "Сколько граммов" : p.by === "caps" ? "Сколько банок" : "Количество"}</div>
     <div class="stepper"><button id="minus" aria-label="Меньше">−</button>
       <input id="qty" type="number" inputmode="numeric" min="${cfg.min}" step="${cfg.step}" value="${cfg.def}" aria-labelledby="qtyLabel"><span>${cfg.unit}</span>
       <button id="plus" aria-label="Больше">+</button></div>
     <div class="presets">${cfg.presets.map(v => `<button class="chip" data-v="${v}">${v} ${cfg.unit}</button>`).join("")}</div>
     <div class="meta total"><span>Итого</span><b id="total"></b></div>
-    <a class="btn" id="orderNow" href="#">Заказать сейчас</a>
-    <button class="btn ghost" id="addc">Добавить в корзину</button>` : `<div class="meta"><span>Наличие</span><b>Нет в наличии</b></div>`}
+    <a class="btn" id="orderNow" href="#">${isPre ? "Оформить предзаказ" : "Заказать сейчас"}</a>
+    <button class="btn ghost" id="addc">${isPre ? "Добавить предзаказ в корзину" : "Добавить в корзину"}</button>` : `<div class="meta"><span>Наличие</span><b>Нет в наличии</b></div>`}
+    ${!p.stock ? `<button class="btn ghost" id="sub">🔔 Сообщить о поступлении</button>` : ""}
     <button class="btn ghost" id="close">Закрыть</button>`;
   $("close").onclick = () => $("dlg").close();
-  if (p.stock){
-    const qtyNow = () => Math.max(cfg.min, Math.round((+$("qty").value || cfg.min) / cfg.step) * cfg.step);
+  if (!p.stock) $("sub").onclick = async () => {
+    if (!tg || !tg.initData){ notify("Подписка работает внутри Telegram."); return; }
+    try { await api("/api/notify", {id: p.id}); buzz(); toast("Сообщим, когда товар появится 🔔"); } catch (e) { notify("Не удалось подписаться. Откройте приложение заново из бота."); }
+  };
+  if (canBuy){
+    const qtyNow = () => { const n = Math.max(cfg.min, Math.round((+$("qty").value || cfg.min) / cfg.step) * cfg.step); return p.stock && p.left != null ? Math.min(n, p.left) : n; };
     const upd = () => { const n = qtyNow(); $("total").textContent = `${qtyLabel(p, n)} — ${fmt(priceOf(p, n))}`; };
     const set = v => { $("qty").value = Math.max(cfg.min, v); upd(); buzz(); };
     $("minus").onclick = () => set((+$("qty").value || cfg.min) - cfg.step);
@@ -279,7 +308,7 @@ function openItem(p){
     $("addc").onclick = () => {
       const n = qtyNow(), ex = CART.find(c => c.id === p.id);
       if (ex) ex.qty += n; else CART.push({id: p.id, qty: n});
-      saveCart(); buzz("medium"); $("dlg").close(); render(); toast("Добавлено в корзину 🌿");
+      saveCart(); buzz("medium"); $("dlg").close(); render(); toast(isPre ? "Предзаказ добавлен в корзину 🕓" : "Добавлено в корзину 🌿");
     };
     $("orderNow").onclick = e => { e.preventDefault(); sendOrder([{p, qty: qtyNow()}], ""); };
     upd();
@@ -288,19 +317,29 @@ function openItem(p){
 }
 
 function openCart(){
-  const rows = cartItems(), total = rows.reduce((s, r) => s + priceOf(r.p, r.qty), 0);
+  const rows = cartItems(), sub = rows.reduce((s, r) => s + priceOf(r.p, r.qty), 0), disc = discountOf(sub), total = sub - disc;
   if (!rows.length){ $("dlg").close(); render(); return; }
   $("dlgBody").innerHTML = `<h2>Корзина</h2><div style="margin-top:14px">
     ${rows.map(r => `<div class="crow"><span class="mini" style="--c:${esc(r.p.cap)}">${pic(r.p)}</span>
-      <span class="ci"><b>${esc(r.p.name)}</b><small>${esc(qtyLabel(r.p, r.qty))}</small></span>
+      <span class="ci"><b>${esc(r.p.name)}</b><small>${esc(qtyLabel(r.p, r.qty))}${r.p.stock ? "" : " · предзаказ"}</small></span>
       <span class="cs">${fmt(priceOf(r.p, r.qty))}</span><button class="x" data-rm="${r.p.id}" aria-label="Убрать">✕</button></div>`).join("")}</div>
+    ${disc ? `<div class="meta"><span>Промокод ${esc(PROMO.code)}</span><b>−${fmt(disc)}</b></div>` : ""}
     <div class="meta total"><span>Итого</span><b>${fmt(total)}</b></div>
+    <div class="catrow"><input class="fld" id="promo" maxlength="20" placeholder="Промокод" value="${esc(PROMO ? PROMO.code : "")}" ${PROMO ? "readonly" : ""}><button class="mv" id="applyPromo" style="width:auto;padding:0 14px">${PROMO ? "Убрать" : "Применить"}</button></div>
+    ${rows.some(r => !r.p.stock) ? `<div class="prenote">🕓 В корзине есть предзаказ: продавец сообщит, когда товар поступит.</div>` : ""}
     <p style="font-size:14px;color:var(--muted);margin:10px 0 0">${esc(DELIVERY || "Только самовывоз. Адрес и время продавец пришлёт после подтверждения заказа.")}</p>
+    ${ADDRESS ? `<p style="font-size:14px;margin:8px 0 0">📍 ${esc(ADDRESS)}</p><button class="btn ghost" id="map">Как добраться</button>` : ""}
     <label>Комментарий к заказу<textarea class="fld" id="comment" rows="2" maxlength="300" placeholder="Пожелания к заказу, удобное время для самовывоза">${esc(lastComment)}</textarea></label>
     <button class="btn" id="send">Отправить заказ продавцу</button>
     <button class="btn ghost" id="chat">Или написать в чат</button>
     <button class="btn ghost" id="clr">Очистить корзину</button><button class="btn ghost" id="close">Закрыть</button>`;
   $("comment").oninput = e => lastComment = e.target.value;
+  $("applyPromo").onclick = async () => {
+    if (PROMO){ PROMO = null; openCart(); return; }
+    const code = $("promo").value.trim(); if (!code) return;
+    try { PROMO = await api("/api/promo", {code}); buzz(); toast("Промокод применён 🎉"); openCart(); } catch (e) { notify("Такого промокода нет."); }
+  };
+  if ($("map")) $("map").onclick = () => { const u = "https://yandex.ru/maps/?text=" + encodeURIComponent(ADDRESS); tg && tg.openLink ? tg.openLink(u) : window.open(u, "_blank"); };
   $("close").onclick = () => $("dlg").close();
   $("clr").onclick = () => { CART = []; saveCart(); $("dlg").close(); render(); };
   $("chat").onclick = () => sendOrder(rows, lastComment.trim());
@@ -308,20 +347,48 @@ function openCart(){
   $("send").onclick = async () => {
     if (!tg || !tg.initData){ notify("Отправка заказа работает внутри Telegram. Нажмите «Или написать в чат»."); return; }
     try {
-      const r = await api("/api/order", {items: rows.map(x => ({id: x.p.id, qty: x.qty})), comment: lastComment.trim()});
-      CART = []; saveCart(); lastComment = ""; $("dlg").close(); render(); buzz("medium");
+      const r = await api("/api/order", {items: rows.map(x => ({id: x.p.id, qty: x.qty})), comment: lastComment.trim(), promo: PROMO ? PROMO.code : ""});
+      CART = []; PROMO = null; saveCart(); lastComment = ""; $("dlg").close(); render(); buzz("medium"); confetti();
+      try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred("success"); } catch (_) {}
+      api("/api/products").then(p => { PRODUCTS = p; render(); }).catch(() => {});
       notify(`Заказ №${r.id} отправлен продавцу. Он свяжется с вами в Telegram.`);
     } catch (e) {
-      notify(e.message === "429" ? "Слишком много заказов за час. Попробуйте позже или напишите продавцу в чат." : "Не удалось отправить заказ. Проверьте корзину или напишите продавцу в чат.");
+      notify(orderErr(e));
     }
   };
   show();
 }
 
 // ---------- продавец ----------
+async function openMyOrders(){
+  $("dlgBody").innerHTML = `<h2>Мои заказы</h2><p class="empty">Загрузка…</p><button class="btn ghost" id="close">Закрыть</button>`;
+  $("close").onclick = () => $("dlg").close(); show();
+  let list; try { list = await api("/api/my-orders"); } catch (e) { notify("Не удалось загрузить заказы."); return; }
+  $("dlgBody").innerHTML = `<h2>Мои заказы</h2>${list.length ? list.map(o => `
+    <div class="ord ${o.status === "done" || o.status === "cancel" ? "done" : ""}">
+      <b>№${o.id}</b> · <small>${fmtDate(o.ts)}</small> · <b>${ST_TXT[o.status] || o.status}</b>
+      ${o.lines.map(l => `<div class="ln">• ${esc(l.name)} — ${esc(l.label)}${l.pre ? " · предзаказ" : ""}</div>`).join("")}
+      ${o.promo ? `<div class="ln"><small>Промокод ${esc(o.promo)}: −${fmt(o.discount)}</small></div>` : ""}
+      <div><b>Итого: ${fmt(o.total)}</b></div>
+      <button class="btn ghost" data-rep="${o.id}">Повторить заказ</button>
+    </div>`).join("") : `<p class="empty">Пока заказов нет</p>`}
+    <button class="btn ghost" id="close">Закрыть</button>`;
+  $("close").onclick = () => $("dlg").close();
+  $("dlgBody").querySelectorAll("[data-rep]").forEach(b => b.onclick = () => {
+    const o = list.find(x => x.id === +b.dataset.rep); let n = 0;
+    o.lines.forEach(l => {
+      const p = PRODUCTS.find(x => x.id === l.pid);
+      if (!p || !(p.stock || p.pre !== false)) return;
+      const ex = CART.find(c => c.id === p.id); if (ex) ex.qty += l.q; else CART.push({id: p.id, qty: l.q}); n++;
+    });
+    saveCart(); render(); $("dlg").close();
+    toast(n ? "Товары добавлены в корзину 🛒" : "Этих товаров сейчас нет в каталоге");
+  });
+}
+
 function openForm(p, asNew){
   const isNew = !p || asNew;
-  p = p || {name:"", lat:"", cat:(CATS.includes(current) ? current : CATS[0]), by:"g", price:"", old:"", caps:60, mg:0.4, unit:"", stock:true, cap:"#9a5a32", desc:"", emoji:"", tag:"", photo:0};
+  p = p || {name:"", lat:"", cat:(CATS.includes(current) ? current : CATS[0]), by:"g", price:"", old:"", caps:60, mg:0.4, unit:"", stock:true, pre:true, eta:"", left:null, cap:"#9a5a32", desc:"", emoji:"", tag:"", photo:0};
   const um = /^(.*?)\s*(\d+)\s*мл$/i.exec(p.unit || "");
   const unitType = um ? um[1] : (p.unit || ""), unitMl = um ? um[2] : "";
   const isC = p.by === "caps", capsPre = [60, 100, 120], mgPre = [0.4, 0.5];
@@ -348,6 +415,7 @@ function openForm(p, asNew){
       </div>
       <label>Цена, ₽<input class="fld" name="price" type="number" inputmode="numeric" min="0" required value="${esc(p.price)}"></label>
       <label>Старая цена, ₽ (необязательно, для скидки)<input class="fld" name="old" type="number" inputmode="numeric" min="0" value="${p.old ? esc(p.old) : ""}"></label>
+      <label>Остаток, г или шт (необязательно)<input class="fld" name="left" type="number" inputmode="numeric" min="0" placeholder="Когда закончится, товар сам станет «нет в наличии»" value="${p.left != null ? esc(p.left) : ""}"></label>
       <label>Описание<textarea class="fld" name="desc" rows="3" maxlength="500">${esc(p.desc)}</textarea></label>
       <label>Фото (необязательно)</label>
       <div class="phrow"><img id="pv" class="pv" alt="" ${p.photo && !asNew ? `src="${photoURL(p)}"` : "hidden"}>
@@ -357,6 +425,8 @@ function openForm(p, asNew){
       <label>Плашка<select class="fld" name="tag"><option value="">Без плашки</option>${Object.keys(TAGS).map(t => `<option ${t === p.tag ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       <label>Цвет плитки<input class="fld" name="cap" type="color" value="${esc(p.cap)}"></label>
       <label class="chk"><input name="stock" type="checkbox" ${p.stock ? "checked" : ""}> В наличии</label>
+      <label class="chk"><input name="pre" type="checkbox" ${p.pre !== false ? "checked" : ""}> Разрешить предзаказ, если нет в наличии</label>
+      <label>Срок ожидания для предзаказа (необязательно)<input class="fld" name="eta" maxlength="60" placeholder="Например: около 2 недель" value="${esc(p.eta || "")}"></label>
       <button class="btn" type="submit">Сохранить</button>
     </form>
     ${isNew ? "" : `<button class="btn ghost" id="dup">Дублировать товар</button><button class="btn ghost" id="del">Удалить товар</button>`}
@@ -377,7 +447,7 @@ function openForm(p, asNew){
   f.onsubmit = async e => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(f));
-    d.stock = f.stock.checked; d.price = +d.price; d.old = +d.old || 0;
+    d.stock = f.stock.checked; d.pre = f.pre.checked; d.left = d.left === "" ? null : +d.left; d.price = +d.price; d.old = +d.old || 0;
     const ml = Math.round(+d.ml) || 0; delete d.ml;
     if (d.by === "pcs") d.unit = ((d.unit || "").trim() || (ml ? "флакон" : "шт")) + (ml ? ` ${ml} мл` : "");
     if (d.by === "caps"){
@@ -410,37 +480,81 @@ function openForm(p, asNew){
 async function openOrders(){
   $("dlgBody").innerHTML = `<h2>Заказы</h2><p class="empty">Загрузка…</p><button class="btn ghost" id="close">Закрыть</button>`;
   $("close").onclick = () => $("dlg").close(); show();
-  let list;
-  try { list = await api("/api/orders"); } catch (e) { notify("Не удалось загрузить заказы."); return; }
+  let list; try { list = await api("/api/orders"); } catch (e) { notify("Не удалось загрузить заказы."); return; }
+  const stats = () => {
+    const now = Date.now(), live = list.filter(o => o.status !== "cancel");
+    const per = d => { const a = live.filter(o => now - o.ts < d * 864e5); return `${a.length} зак. · ${fmt(a.reduce((t, o) => t + o.total, 0))}`; };
+    const top = {}; live.filter(o => now - o.ts < 30 * 864e5).forEach(o => o.lines.forEach(l => top[l.name] = (top[l.name] || 0) + 1));
+    const best = Object.entries(top).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([n, c]) => `${esc(n)} (${c})`).join(", ");
+    return `<div class="ord"><b>📊 Статистика</b>
+      <div class="stat"><span>Сегодня</span><b>${per(1)}</b></div><div class="stat"><span>7 дней</span><b>${per(7)}</b></div><div class="stat"><span>30 дней</span><b>${per(30)}</b></div>
+      ${best ? `<div class="ln"><small>Популярное за 30 дней:</small> ${best}</div>` : ""}</div>`;
+  };
+  const acts = o => o.status === "new" ? `<button class="btn" data-st="${o.id}:ready">Готов к выдаче</button><button class="btn ghost" data-st="${o.id}:done">Выдан</button><button class="btn ghost" data-st="${o.id}:cancel">Отменить</button>`
+    : o.status === "ready" ? `<button class="btn" data-st="${o.id}:done">Выдан</button><button class="btn ghost" data-st="${o.id}:cancel">Отменить</button>`
+    : `<button class="btn ghost" data-st="${o.id}:new">Вернуть в работу</button>`;
   const draw = () => {
-    $("dlgBody").innerHTML = `<h2>Заказы</h2>${list.length ? list.map(o => `
-      <div class="ord ${o.status === "done" ? "done" : ""}">
-        <b>№${o.id}</b> · <small>${new Date(o.ts).toLocaleString("ru-RU", {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"})}</small> ${o.status === "done" ? "· <small>выполнен</small>" : ""}
+    $("dlgBody").innerHTML = `<h2>Заказы</h2>${stats()}${list.length ? list.map(o => `
+      <div class="ord ${o.status === "done" || o.status === "cancel" ? "done" : ""}">
+        <b>№${o.id}</b> · <small>${fmtDate(o.ts)}</small> · <b>${ST_TXT[o.status] || o.status}</b>
         <div>${esc(o.name)} ${o.username ? `<small>@${esc(o.username)}</small>` : `<small>ID ${o.uid}</small>`}</div>
-        ${o.lines.map(l => `<div class="ln">• ${esc(l.name)} — ${esc(l.label)} — ${fmt(l.sum)}</div>`).join("")}
+        ${o.lines.map(l => `<div class="ln">• ${esc(l.name)} — ${esc(l.label)}${l.pre ? " · предзаказ" : ""} — ${fmt(l.sum)}</div>`).join("")}
+        ${o.promo ? `<div class="ln"><small>Промокод ${esc(o.promo)}: −${fmt(o.discount)}</small></div>` : ""}
         <div><b>Итого: ${fmt(o.total)}</b></div>
         ${o.comment ? `<div><small>Комментарий:</small> ${esc(o.comment)}</div>` : ""}
         ${o.username ? `<button class="btn ghost" data-w="${esc(o.username)}">Написать покупателю</button>` : ""}
-        <button class="btn ghost" data-st="${o.id}">${o.status === "done" ? "Вернуть в работу" : "Отметить выполненным"}</button>
+        ${acts(o)}
       </div>`).join("") : `<p class="empty">Заказов пока нет</p>`}
       <button class="btn ghost" id="close">Закрыть</button>`;
     $("close").onclick = () => $("dlg").close();
     $("dlgBody").querySelectorAll("[data-w]").forEach(b => b.onclick = () => { const u = `https://t.me/${b.dataset.w}`; tg ? tg.openTelegramLink(u) : window.open(u, "_blank"); });
     $("dlgBody").querySelectorAll("[data-st]").forEach(b => b.onclick = async () => {
-      const o = list.find(x => x.id === +b.dataset.st), st = o.status === "done" ? "new" : "done";
-      try { await api("/api/orders/status", {id: o.id, status: st}); o.status = st; draw(); } catch (e) { notify("Не удалось обновить статус."); }
+      const [id, st] = b.dataset.st.split(":"), o = list.find(x => x.id === +id);
+      try {
+        await api("/api/orders/status", {id: o.id, status: st}); o.status = st;
+        if (st === "cancel" || st === "new") { PRODUCTS = await api("/api/products"); render(); }
+        draw(); toast(st === "ready" ? "Покупателю отправлено уведомление" : "Статус обновлён");
+      } catch (e) { notify("Не удалось обновить статус."); }
     });
   };
   draw();
 }
 
+async function openBroadcast(){
+  $("dlgBody").innerHTML = `<h2>Рассылка</h2><p>Сообщение получат все, кто запускал бота или делал заказ. <b id="bcTotal"></b></p>
+    <label>Текст сообщения<textarea class="fld" id="bcText" rows="5" maxlength="1000" placeholder="Например: Поступили свежие грибы! Забирайте до воскресенья."></textarea></label>
+    <button class="btn" id="bcSend">Отправить всем</button><button class="btn ghost" id="close">Закрыть</button>`;
+  $("close").onclick = () => $("dlg").close(); show();
+  try { const c = await api("/api/broadcast", {count: true}); $("bcTotal").textContent = `Получателей: ${c.total}.`; } catch (e) {}
+  $("bcSend").onclick = () => {
+    const text = $("bcText").value.trim();
+    if (!text){ notify("Напишите текст сообщения."); return; }
+    ask("Отправить это сообщение всем покупателям?", async ok => {
+      if (!ok) return;
+      let off = 0, sent = 0, tot = 0;
+      try {
+        do { const r = await api("/api/broadcast", {text, offset: off}); sent += r.sent; tot = r.total; off = r.next; $("bcSend").textContent = `Отправка… ${Math.min(sent, tot)}/${tot}`; } while (off !== null && off !== undefined);
+        $("dlg").close(); notify(`Готово: доставлено ${sent} из ${tot}.`);
+      } catch (e) { notify("Рассылка прервалась. Попробуйте ещё раз."); }
+    });
+  };
+}
+
 function openSettings(){
-  let draft = CATS.map(n => ({orig:n, name:n})), deleted = [], contactVal = CONTACT, bannerVal = BANNER, deliveryVal = DELIVERY;
+  let draft = CATS.map(n => ({orig:n, name:n})), deleted = [], contactVal = CONTACT, bannerVal = BANNER, deliveryVal = DELIVERY, addressVal = ADDRESS, promoDraft = PROMOS.map(x => ({code: x.code, v: x.pct || x.sum || "", t: x.pct ? "pct" : "sum"}));
   const draw = () => {
     $("dlgBody").innerHTML = `<h2>Настройки</h2>
       <label>Ваш Telegram-ник для заказов (без @)<input class="fld" id="contact" maxlength="32" value="${esc(contactVal)}" placeholder="например, naturehug_shop"></label>
       <label>Объявление на главной (необязательно)<input class="fld" id="banner2" maxlength="200" value="${esc(bannerVal)}" placeholder="Например: самовывоз ежедневно с 10 до 20"></label>
       <label>Самовывоз: адрес и время (показывается в корзине)<textarea class="fld" id="delivery" rows="2" maxlength="300" placeholder="Например: ул. Ленина, 5, ежедневно с 10:00 до 20:00. Оплата при получении">${esc(deliveryVal)}</textarea></label>
+      <label>Адрес самовывоза (для кнопки «Как добраться»)<input class="fld" id="address2" maxlength="200" value="${esc(addressVal)}" placeholder="Город, улица, дом"></label>
+      <label>Промокоды</label>
+      <div id="promorows">${promoDraft.map((x, i) => `<div class="catrow">
+        <input class="fld" data-pc="${i}" maxlength="20" value="${esc(x.code)}" placeholder="КОД">
+        <input class="fld" data-pv="${i}" type="number" inputmode="numeric" min="1" style="max-width:78px" value="${esc(x.v)}">
+        <select class="fld" data-pt="${i}" style="max-width:70px"><option value="pct" ${x.t === "pct" ? "selected" : ""}>%</option><option value="sum" ${x.t === "sum" ? "selected" : ""}>₽</option></select>
+        <button class="mv" data-pd="${i}" aria-label="Удалить">🗑</button></div>`).join("")}</div>
+      <button class="btn ghost" id="addPromo">+ Промокод</button>
       <label>Категории</label>
       <div id="catrows">${draft.map((d, i) => `<div class="catrow">
         <button class="mv" data-up="${i}" aria-label="Выше" ${i === 0 ? "disabled" : ""}>↑</button>
@@ -453,6 +567,12 @@ function openSettings(){
     $("contact").oninput = e => contactVal = e.target.value;
     $("banner2").oninput = e => bannerVal = e.target.value;
     $("delivery").oninput = e => deliveryVal = e.target.value;
+    $("address2").oninput = e => addressVal = e.target.value;
+    $("promorows").querySelectorAll("[data-pc]").forEach(i => i.oninput = () => promoDraft[+i.dataset.pc].code = i.value.toUpperCase());
+    $("promorows").querySelectorAll("[data-pv]").forEach(i => i.oninput = () => promoDraft[+i.dataset.pv].v = i.value);
+    $("promorows").querySelectorAll("[data-pt]").forEach(i => i.onchange = () => promoDraft[+i.dataset.pt].t = i.value);
+    $("promorows").querySelectorAll("[data-pd]").forEach(b => b.onclick = () => { promoDraft.splice(+b.dataset.pd, 1); draw(); });
+    $("addPromo").onclick = () => { promoDraft.push({code: "", v: 10, t: "pct"}); draw(); };
     $("catrows").querySelectorAll("[data-name]").forEach(inp => inp.oninput = () => draft[+inp.dataset.name].name = inp.value);
     $("catrows").querySelectorAll("[data-up]").forEach(b => b.onclick = () => { const i = +b.dataset.up; [draft[i-1], draft[i]] = [draft[i], draft[i-1]]; draw(); });
     $("catrows").querySelectorAll("[data-del]").forEach(b => b.onclick = () => ask("Удалить категорию? Её товары переедут в «Другое».", ok => {
@@ -479,8 +599,9 @@ function openSettings(){
       draft.forEach(d => { const n = d.name.trim(); if (d.orig && n && n !== d.orig) moves[d.orig] = n; });
       deleted.forEach(o => moves[o] = "Другое");
       try {
-        const r = await api("/api/config/save", {cats: draft.map(d => d.name.trim()).filter(Boolean), contact: contactVal, banner: bannerVal, delivery: deliveryVal, moves});
-        CATS = r.cats; CONTACT = r.contact; BANNER = r.banner; DELIVERY = r.delivery; PRODUCTS = await api("/api/products");
+        const r = await api("/api/config/save", {cats: draft.map(d => d.name.trim()).filter(Boolean), contact: contactVal, banner: bannerVal, delivery: deliveryVal, address: addressVal,
+          promos: promoDraft.filter(x => x.code.trim() && +x.v > 0).map(x => x.t === "pct" ? {code: x.code.trim(), pct: +x.v} : {code: x.code.trim(), sum: +x.v}), moves});
+        CATS = r.cats; CONTACT = r.contact; BANNER = r.banner; DELIVERY = r.delivery; ADDRESS = r.address || ""; PROMOS = r.promos || []; PRODUCTS = await api("/api/products");
         if (!CATS.includes(current) && current !== "__fav") current = CATS[0];
         render(); $("dlg").close(); toast("Настройки сохранены");
       } catch (e) { notify("Не удалось сохранить. Проверьте ник: 3–32 символа, латиница, цифры и _."); }
@@ -490,7 +611,7 @@ function openSettings(){
 }
 
 // ---------- события ----------
-$("chips").onclick = e => { const b = e.target.closest(".chip"); if (b){ current = b.dataset.c; buzz(); render(); } };
+$("chips").onclick = e => { const b = e.target.closest(".chip"); if (b){ if (b.dataset.c === "__my"){ openMyOrders(); return; } current = b.dataset.c; buzz(); render(); } };
 $("q").oninput = e => { q = e.target.value.trim(); render(); };
 $("sort").onchange = e => { SORT = e.target.value; render(); };
 $("cartBar").onclick = openCart;
@@ -498,7 +619,7 @@ $("list").onclick = e => {
   const h = e.target.closest(".heart");
   if (h){ const id = h.dataset.fav; FAV.has(id) ? FAV.delete(id) : FAV.add(id); saveFav(); buzz(); render(); return; }
   const sw = e.target.closest(".sw");
-  if (sw){ const p = PRODUCTS.find(x => x.id === sw.dataset.sw); buzz(); persist({...p, stock: !p.stock}); return; }
+  if (sw){ const p = PRODUCTS.find(x => x.id === sw.dataset.sw); buzz(); persist({...p, stock: !p.stock, left: (!p.stock && p.left === 0) ? null : p.left}); return; }
   const it = e.target.closest(".cbtn");
   if (!it) return;
   const p = PRODUCTS.find(x => x.id === it.dataset.id);
@@ -509,7 +630,7 @@ $("dlg").onclick = e => { if (e.target === $("dlg")) $("dlg").close(); };
 (async () => {
   try {
     const [p, c, me] = await Promise.all([api("/api/products"), api("/api/config"), api("/api/me")]);
-    PRODUCTS = p; CATS = c.cats; CONTACT = c.contact || ""; BANNER = c.banner || ""; DELIVERY = c.delivery || "";
+    PRODUCTS = p; CATS = c.cats; CONTACT = c.contact || ""; BANNER = c.banner || ""; DELIVERY = c.delivery || ""; ADDRESS = c.address || ""; PROMOS = c.promos || [];
     isAdmin = !!me.admin; current = CATS[0];
     render();
   } catch (e) {
